@@ -1,8 +1,10 @@
+import codecs
 import json
 import os
 from typing import Tuple
 
 import numpy as np
+import pandas as pd
 from flask import Flask, render_template, request, send_from_directory
 
 import PASCal.utils
@@ -52,6 +54,92 @@ def _parse_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     return x, x_error, unit_cells
 
+# --- read temperature and lattice parameters from cif file ---
+
+def read_float(string):
+    # remove uncertainty, 393.0(2) -> 393.0
+    f = float(string.split("(")[0])
+    return f
+
+def parse_cif(cif_content, cif_filename):
+    lines = cif_content.split('\n')
+    data = {}
+    required_keys = [
+        "_cell_measurement_temperature",
+        "_cell_length_a", "_cell_length_b", "_cell_length_c",
+        "_cell_angle_alpha", "_cell_angle_beta", "_cell_angle_gamma",
+        "_chemical_formula_sum",
+    ]
+    # abbreviations for long field names
+    short_names = {
+        "_cell_measurement_temperature": "T",
+        "_cell_length_a": "a",
+        "_cell_length_b": "b",
+        "_cell_length_c": "c",
+        "_cell_angle_alpha": "alpha",
+        "_cell_angle_beta": "beta",
+        "_cell_angle_gamma": "gamma",
+        "_chemical_formula_sum": "formula",
+    }
+    for line in lines:
+        words = line.split()
+        for key in required_keys:
+            short_name = short_names[key]
+            if line.startswith(key):
+                if "_cell" in key:
+                    data[short_name] = read_float(words[1])
+                else:
+                    data[short_name] = words[1]
+
+    # Check that all required fields are present
+    for key in required_keys:
+        if short_names[key] not in data:
+            raise RuntimeError(f"Cif file {cif_filename} is missing required field {key}")
+
+    df = pd.DataFrame(data, index=[cif_filename])
+    # Bring columns in the order expected by Pascal:
+    # T  a b c  alpha beta gamma
+    df = df.loc[:, [short_names[key] for key in required_keys]]
+
+    return df
+
+
+def _parse_data_from_cif_files() -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Read temperatures and lattice parameters from uploaded .cif files.
+
+    Returns:
+        A tuple of T, T_error, and unit_cell parameters.
+    """
+    dataframes = []
+    for uploaded_file in request.files.getlist('upload'):
+        cif_filename = uploaded_file.filename
+        cif_content = codecs.decode(uploaded_file.read(), encoding="utf-8")
+        df_ = parse_cif(cif_content, cif_filename)
+        dataframes.append(df_)
+    if len(dataframes) < 2:
+        raise RuntimeError("You have to upload at least *two* .cif files measured at different temperatures")
+    df = pd.concat(dataframes)
+    # sort rows by temperature
+    df.sort_values("T", inplace=True)
+
+    # Check that all .cif files belong to the same molecule. We look at the '_chemical_formula_sum' field
+    # to check that the elemental composition is the same in all .cif files.
+    unique_formulae = df["formula"].unique()
+    if len(unique_formulae) > 1:
+        raise RuntimeError(f".cif files belong to different molecules, formulae = {unique_formulae}")
+    df = df.drop("formula", axis=1)
+
+    data = df.to_numpy()
+    # temperatures in Kelvin
+    T = data[:, 0]
+    # latttice parameters, a b c alpha beta gamma
+    unit_cells = data[:, 1:]
+    # Assume that the error for the temperature measurement is 1 K
+    T_error = 1.0 * np.ones_like(T)
+
+    return T, T_error, unit_cells
+
 
 @app.route("/output", methods=["POST"])
 def output():
@@ -60,12 +148,15 @@ def output():
     except Exception as exc:
         raise RuntimeError(f"Could not parse options: {request.form}\nException: {exc}")
 
-    try:
-        x, x_errors, unit_cells = _parse_data()
-    except Exception as exc:
-        raise RuntimeError(
-            f"Could not parse data: {request.form.get('data')}\nException: {exc}"
-        )
+    if len(request.files) == 0:
+        try:
+            x, x_errors, unit_cells = _parse_data()
+        except Exception as exc:
+            raise RuntimeError(
+                f"Could not parse data: {request.form.get('data')}\nException: {exc}"
+            )
+    else:
+        x, x_errors, unit_cells = _parse_data_from_cif_files()
 
     fit_results = fit(x, x_errors, unit_cells, options)
 

@@ -21,7 +21,7 @@
             <td><a class="link" href="https://docs.pascalapp.co.uk"><i class="fa fa-book"></i> Documentation</a></td>
             </table>
           </div>
-          <form method="post" action="{{url_for('output')}}">
+          <form method="post" action="{{url_for('output')}}" enctype="multipart/form-data">
             <div class="input_area">
               <div class="option">
                 <h2>Options</h2>
@@ -94,7 +94,7 @@
                 <div class=tooltip>&#946;<span class="tooltiptext">º</span></div>&nbsp;&nbsp;
                 <div class=tooltip>&#947;<span class="tooltiptext">º</span></div>
                 <div class="datainput">
-                  <TEXTAREA class="info" name="data" id ="data" rows="20" cols="66" class= "text_area" required="required" >
+                  <TEXTAREA class="info" name="data" id ="data" rows="20" cols="66" class= "text_area" required="required" oninput="textChanged()">
 #Variable Temperature Data for Ag3CoCN6 Phase II
 95      5       6.6200  11.3500 6.6230  90.0000 78.5000 90.0000
 120     5       6.6310  11.3622 6.6140  90.0000 78.4680 90.0000
@@ -106,6 +106,39 @@
 270     5       6.6401  11.4091 6.5956  90.0000 78.3490 90.0000
 300     5       6.6415  11.4251 6.5959  90.0000 78.2840 90.0000
                   </TEXTAREA>
+                  <script>
+                    function textChanged() {
+                      document.getElementById('upload').value = ''
+                    }
+                  </script>
+                </div>
+              </div>
+              <div class="subtitle">
+                <div>
+                  <label for="upload">
+                    <div class=tooltip>
+                      Upload .cif files with XRD measurements at different temperatures.
+                      <span class="tooltiptext">
+                        The temperature and lattice parameters are extracted from the .cif files.
+                        Select at least two .cif files of the same crystal measured at different temperatures.
+                      </span>
+                    </div>
+                  </label>
+                  <input type="file" name="upload" id="upload" accept=".cif" onchange="UseCifFilesMessage()" multiple>
+                  <script>
+                    function UseCifFilesMessage() {
+                      document.getElementById('data').value = '# Temperature and lattice parameters will be read from .cif files'
+                      document.getElementById('temp').checked = true;
+                      document.getElementById('press').checked = false;
+                      document.getElementById('elec').checked = false;
+                      document.getElementById('eulerian').checked = true;
+                      document.getElementById('finite').checked = true;
+                      document.getElementById('Pc').checked = false;
+                      document.getElementById('PcVal').value = ''
+                      document.getElementById('DegPolyCap').value = ''
+                      document.getElementById('DegPolyVol').value = ''
+                    }
+                  </script>
                 </div>
               </div>
 
@@ -139,7 +172,7 @@
                 document.getElementById('PcVal').value = ''
                 document.getElementById('DegPolyCap').value = ''
                 document.getElementById('DegPolyVol').value = ''
-
+                document.getElementById('upload').value = ''
               }
             </script>
 
@@ -163,6 +196,7 @@
                 document.getElementById('PcVal').value = ''
                 document.getElementById('DegPolyCap').value = ''
                 document.getElementById('DegPolyVol').value = ''
+                document.getElementById('upload').value = ''
               }
             </script>
 
@@ -193,6 +227,7 @@
                   document.getElementById('PcVal').value = 0.19
                   document.getElementById('DegPolyCap').value = ''
                   document.getElementById('DegPolyVol').value = ''
+                  document.getElementById('upload').value = ''
               }
             </script>
 
@@ -288,6 +323,7 @@
                 document.getElementById('PcVal').value = ''
                 document.getElementById('DegPolyCap').value = 4
                 document.getElementById('DegPolyVol').value = 5
+                document.getElementById('upload').value = ''
               }
             </script>
           </div>
