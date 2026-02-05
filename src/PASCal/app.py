@@ -109,11 +109,14 @@ def _parse_data_from_cif_files() -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     Read temperatures and lattice parameters from uploaded .cif files.
 
     Returns:
-        A tuple of T, T_error, and unit_cell parameters.
+        provenance: string with uploaded filenames
+        (T, T_error, unit_cells): Temperature, error of temperature and unit_cell parameters
     """
     dataframes = []
+    filenames = []
     for uploaded_file in request.files.getlist('upload'):
         cif_filename = uploaded_file.filename
+        filenames.append(cif_filename)
         cif_content = codecs.decode(uploaded_file.read(), encoding="utf-8")
         df_ = parse_cif(cif_content, cif_filename)
         dataframes.append(df_)
@@ -138,7 +141,8 @@ def _parse_data_from_cif_files() -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     # Assume that the error for the temperature measurement is 1 K
     T_error = 1.0 * np.ones_like(T)
 
-    return T, T_error, unit_cells
+    provenance = "<i><u>Uploaded .cif files</u>:</i> %s" % (' '.join(filenames))
+    return provenance, (T, T_error, unit_cells)
 
 
 @app.route("/output", methods=["POST"])
@@ -148,17 +152,22 @@ def output():
     except Exception as exc:
         raise RuntimeError(f"Could not parse options: {request.form}\nException: {exc}")
 
-    if len(request.files) == 0:
+    # If no .cif files were uploaded, the filename is empty.
+    if request.files.getlist('upload')[0].filename == '':
+        # Read input from textarea.
         try:
             x, x_errors, unit_cells = _parse_data()
         except Exception as exc:
             raise RuntimeError(
                 f"Could not parse data: {request.form.get('data')}\nException: {exc}"
             )
+        provenance = ""
     else:
-        x, x_errors, unit_cells = _parse_data_from_cif_files()
+        # Read input from cif files.
+        provenance, (x, x_errors, unit_cells)  = _parse_data_from_cif_files()
 
     fit_results = fit(x, x_errors, unit_cells, options)
+    fit_results.provenance = provenance
 
     return _render_results(fit_results)
 
@@ -179,6 +188,7 @@ def _render_results(results: PASCalResults) -> str:
             "temperature.html",
             config=json.dumps(PLOTLY_CONFIG),
             __version__=__version__,
+            provenance=results.provenance,
             warning=results.warning,
             PlotStrainJSON=results.plot_strain(return_json=True),
             PlotVolumeJSON=results.plot_volume(return_json=True),
