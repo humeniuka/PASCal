@@ -102,7 +102,7 @@ def parse_cif(cif_content, cif_filename):
                     else:
                         # Data on same line
                         #  _chemical_formula_sum 'C18 H12 N2'
-                        data[short_name] = words[1]
+                        data[short_name] = " ".join(words[1:])
 
     # Check that all required fields are present
     for key in required_keys:
@@ -286,4 +286,4 @@ def _render_results(results: PASCalResults) -> str:
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, passthrough_errors=True)
