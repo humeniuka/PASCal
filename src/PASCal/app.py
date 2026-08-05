@@ -81,15 +81,28 @@ def parse_cif(cif_content, cif_filename):
         "_cell_angle_gamma": "gamma",
         "_chemical_formula_sum": "formula",
     }
-    for line in lines:
+    for i,line in enumerate(lines):
         words = line.split()
         for key in required_keys:
             short_name = short_names[key]
             if line.startswith(key):
                 if "_cell" in key:
-                    data[short_name] = read_float(words[1])
+                    if len(words) == 1:
+                        # Data on next line
+                        data[short_name] = read_float(lines[i+1].strip())
+                    else:
+                        # Data on same line
+                        data[short_name] = read_float(words[1])
                 else:
-                    data[short_name] = words[1]
+                    if len(words) == 1:
+                        # Data on next line
+                        # _chemical_formula_sum
+                        #   'C18 H12 N2'
+                        data[short_name] = lines[i+1].strip()
+                    else:
+                        # Data on same line
+                        #  _chemical_formula_sum 'C18 H12 N2'
+                        data[short_name] = words[1]
 
     # Check that all required fields are present
     for key in required_keys:
